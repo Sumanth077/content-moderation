@@ -107,7 +107,7 @@ with st.sidebar:
 
     image_urls = st.text_area(height = 300,
             label = 'Image URLs',
-            value = 'https://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_1.png\nhttps://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_1.png\nhttps://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_1.png'
+            value = 'https://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_1.png\nhttps://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_2.png\nhttps://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_3.png'
         )
 
     #### Model Selections
@@ -131,7 +131,7 @@ with st.sidebar:
     vis_class_model_id = st.selectbox(
         label="Select Image Classification",
         options=community_visual_classifiers_ids_only,
-        index=19,  # this should hopefully be the `moderation-all-resnext-2` model selected
+        index=10,  # this should hopefully be the `moderation-all-resnext-2` model selected
     )
 
     selected_vis_clas_model = [
@@ -146,11 +146,11 @@ with st.sidebar:
     )
 
     vis_class_threshold = st.slider(
-        label="Specify threshold for Visual Classifier Models", min_value=0.0, max_value=1.0, value=0.5
+        label="Specify threshold for Visual Classifier Models", min_value=0.0, max_value=1.0, value=0.3
     )
 
     workflow_threshold = st.slider(
-        label="Specify threshold for Moderation Workflow", min_value=0.0, max_value=1.0, value=0.5
+        label="Specify threshold for Moderation Workflow", min_value=0.0, max_value=1.0, value=0.3
     )
 
     # LLVM Selection
@@ -167,7 +167,7 @@ with st.sidebar:
     llvm_model_id = st.selectbox(
         label="Select LLVM",
         options=community_llvms_ids_only,
-        index=11,  # this should hopefully be the `gpt-4o`
+        index=15,
     )
 
     selected_llvm = [x for x in community_llvms if x.id == llvm_model_id][0]
@@ -215,7 +215,7 @@ with tab1:
         # url version
         upload_image_url = st.text_input(
             label="Enter image url:",
-            value="https://samples.clarifai.com/metro-north.jpg",
+            value="https://s3.us-east-1.amazonaws.com/samples.clarifai.com/moderation_2.png",
         )
 
         business_prompt_url = st.text_area(
@@ -284,11 +284,14 @@ if submitted_url or submitted_file:
             )
 
         vis_class_threshold = vis_class_threshold
+        print(f"Visual Class Pred: *****\n{vis_class_pred}")
+
         filtered_concepts = [
             x
             for x in vis_class_pred.outputs[0].data.concepts
             if x.value >= vis_class_threshold
         ]
+        print(f"Filtered Concepts: *****\n{filtered_concepts}")
         if not filtered_concepts:
             st.info(f"No concepts detected above the confidence threshold of {vis_class_threshold:.2f}")
         
@@ -338,38 +341,41 @@ if submitted_url or submitted_file:
                 input_type="image",
             )
 
-        print(vis_class_pred2.results[0].outputs)
+        workflow_threshold = workflow_threshold
+
         vis_class_tuple_of_tuples2 = ()
+
+        final_filtered_concepts = []  # Collect all filtered concepts here
 
         for output2 in vis_class_pred2.results[0].outputs[:]:
             print(f"model_id: {output2.model.id} **************")
             print(f"data: *****\n{output2.data}")
-
-            if (
-                output2.model.id == "moderation-all-resnext-2"
-                or output2.model.id == "nsfw-recognition"
-                or output2.model.id == "moderation-recognition"
-                or output2.model.id == "moderation-multilingual-text-classification"
-                or output2.model.id == "weapon-detection"
-            ):
-
-                workflow_threshold = workflow_threshold
-
+            
+            if output2.model.id in [
+                "moderation-all-resnext-2",
+                "nsfw-recognition",
+                "moderation-recognition",
+                "moderation-multilingual-text-classification",
+                "weapon-detection",
+            ]:
                 filtered_concepts = [
                     x
                     for x in output2.data.concepts
                     if x.value >= workflow_threshold
                 ]
-                if not filtered_concepts:
-                    st.info(f"No concepts detected above the confidence threshold of {workflow_threshold:.2f}")
-                else:
-                    vis_class_tuple_of_tuples2 = vis_class_tuple_of_tuples2 + tuple(
-                        [
-                            (f"{x.name}", f"{x.value:.3f}", tag_bg_color, tag_text_color)
-                            for x in filtered_concepts
-                        ]
-                    )
+                final_filtered_concepts.extend(filtered_concepts)  # Add to the final list
 
+        # Process the final list of concepts
+        if not final_filtered_concepts:
+            st.info(f"No concepts detected above the confidence threshold of {workflow_threshold:.2f}")
+        else:
+            vis_class_tuple_of_tuples2 = tuple(
+                [
+                    (f"{x.name}", f"{x.value:.3f}", tag_bg_color, tag_text_color)
+                    for x in final_filtered_concepts
+                ]
+            )
+            
             if output2.model.id == "weapon-detection" and hasattr(
                 output2.data, "regions"
             ):
@@ -470,7 +476,7 @@ with st.expander("Details"):
                 - **moderation-recognition**: Performs additional content moderation checks.
                 - **moderation-multilingual-text-classification**: Analyzes any textual elements within the image.
                 - **weapon-detection**: Looks for the presence of weapons or other security threats.
-            3. **LLVM (Large Language Visual Model)**: Provides a detailed, contextual description of the image based on your prompt. Examples include:
+            3. **LLVM (Large Language Vision Model)**: Provides a detailed, contextual description of the image based on your prompt. Examples include:
                 - GPT-4o
                 - Claude-3-Vision  
                 Select different available models from the sidebar.
